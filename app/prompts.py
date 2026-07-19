@@ -23,3 +23,10 @@ Instructions:
 - Be concise and factual.
 
 Answer:"""
+
+REWRITE_QUERY_PROMPT = (
+    "Rewrite the following user query so it is better suited for semantic document retrieval.\n"
+    "Keep the intent exactly the same.\n"
+    "Return only the rewritten query.\n\n"
+    "Query: {query}"
+)
