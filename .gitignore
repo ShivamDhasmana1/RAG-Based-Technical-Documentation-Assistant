@@ -13,3 +13,29 @@ build/
 .DS_Store
 chroma_db/
 data/chroma/
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtual Environment
+.venv/
+venv/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Chroma Database
+data/chroma/
+
+# Logs
+*.log
