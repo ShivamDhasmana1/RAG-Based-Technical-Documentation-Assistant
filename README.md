@@ -129,6 +129,12 @@ uv sync
 
 ## Environment Variables
 
+Copy the example file and fill in your own values — `.env` is
+git-ignored, so each person running this project needs to create
+their own local copy with their own Groq API key (get one free at
+[console.groq.com](https://console.groq.com)). Never commit `.env`
+or share your key publicly.
+
 ```bash
 cp .env.example .env
 ```
@@ -140,6 +146,10 @@ GROQ_API_KEY=your-groq-api-key
 MODEL_NAME=llama-3.1-8b-instant
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 ```
+
+If `GROQ_API_KEY` is missing or empty, the app fails fast at startup
+with a `RuntimeError` naming the missing variable, instead of
+crashing later on the first request to `/api/query`.
 
 ---
 
