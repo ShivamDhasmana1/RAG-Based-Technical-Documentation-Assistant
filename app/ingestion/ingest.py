@@ -6,8 +6,7 @@ from app.ingestion.chunker import chunk_documents
 from app.ingestion.loader import load_documents
 
 
-def ingest_documents() -> Chroma:
-
+def ingest_documents() -> tuple[Chroma, int]:
     documents = load_documents()
     chunks = chunk_documents(documents)
 
@@ -20,4 +19,4 @@ def ingest_documents() -> Chroma:
 
     vector_store.add_documents(chunks)
 
-    return vector_store
+    return vector_store, len(chunks)

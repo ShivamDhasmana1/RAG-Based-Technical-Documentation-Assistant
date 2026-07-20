@@ -1,34 +1,44 @@
 # RAG Technical Documentation Assistant
 
-A Retrieval-Augmented Generation (RAG) system that answers technical documentation questions by combining semantic search over a ChromaDB vector store with an LLM-driven LangGraph workflow. The application retrieves relevant documents, evaluates their relevance, optionally rewrites the query when insufficient context is found, and generates grounded responses through a FastAPI REST API.
+A Retrieval-Augmented Generation (RAG) system that answers technical
+documentation questions using a self-corrective LangGraph workflow:
+it analyzes the query, retrieves candidate chunks from a ChromaDB
+vector store, grades them for relevance, rewrites and retries the
+query when nothing relevant is found, and generates a grounded,
+cited answer through a FastAPI REST API.
 
 ---
 
 ## Features
 
-- Document ingestion from local files
-- PDF & Markdown document support
-- Recursive document chunking
+- Document ingestion from local files (PDF & Markdown)
+- Recursive chunking
 - Persistent ChromaDB vector database
 - BAAI/bge-small-en-v1.5 embeddings
 - Semantic similarity search
+- Query analysis (classification + rewrite) before retrieval
 - LLM-based document relevance grading
-- Query rewriting & retry workflow
+- Conditional routing: generate, retry, or stop based on grading
+- Query rewriting with a bounded retry loop
+- Cited answers, grounded only in retrieved context
 - LangGraph orchestration
-- FastAPI REST API
-- Modular and production-friendly project structure
+- FastAPI REST API with ingestion, listing, and feedback endpoints
 
 ---
 
 ## How It Works
 
-1. Documents are loaded from the local data directory.
-2. Documents are recursively split into manageable chunks.
-3. Each chunk is embedded using **BAAI/bge-small-en-v1.5** and stored in **ChromaDB**.
-4. A user query is embedded and used to retrieve semantically similar documents.
-5. Retrieved documents are graded for relevance using an LLM.
-6. If relevant documents are found, the system generates a grounded answer.
-7. Otherwise, the workflow rewrites the query and retries retrieval until the retry limit is reached.
+1. The user's query is classified (conceptual / how-to / troubleshooting /
+   API reference) and rewritten for better retrieval.
+2. The rewritten query is embedded and used to retrieve the top-k most
+   similar chunks from ChromaDB.
+3. Each retrieved chunk is graded for relevance to the query by an LLM.
+4. **If relevant chunks were found:** the system generates an answer
+   grounded in those chunks, citing their source documents.
+5. **If no relevant chunks were found and retries remain:** the query is
+   rewritten and retrieval is retried.
+6. **If no relevant chunks were found and retries are exhausted:** the
+   workflow ends without fabricating an answer.
 
 ---
 
@@ -36,16 +46,17 @@ A Retrieval-Augmented Generation (RAG) system that answers technical documentati
 
 ```mermaid
 flowchart TD
-    A[User Query] --> B[Retrieve Documents]
-    B --> C[Grade Documents]
+    A[User Query] --> B[Analyze Query]
+    B --> C[Retrieve Documents]
+    C --> D[Grade Documents]
 
-    C -->|Relevant Documents Found| D[Generate Answer]
-    D --> G[Return Response]
+    D -->|Relevant documents found| E[Generate Answer]
+    E --> F[Return Response with Citations]
 
-    C -->|No Relevant Documents & Retries Remaining| E[Rewrite Query]
-    E --> B
+    D -->|No relevant documents, retries remaining| G[Rewrite Query]
+    G --> C
 
-    C -->|Retry Limit Reached| F[End Without Answer]
+    D -->|No relevant documents, retries exhausted| H[End Without Answer]
 ```
 
 ---
@@ -72,7 +83,7 @@ rag-assistant/
 │   ├── schemas.py
 │   └── main.py
 ├── data/
-│   └── raw/
+│   └── raw/            # sample corpus (FastAPI, LangGraph, vector DB basics)
 ├── tests/
 │   └── test_api.py
 ├── README.md
@@ -88,8 +99,7 @@ rag-assistant/
 - FastAPI
 - LangGraph
 - ChromaDB
-- HuggingFace Sentence Transformers
-- BAAI/bge-small-en-v1.5
+- HuggingFace Sentence Transformers (BAAI/bge-small-en-v1.5)
 - Groq
 - Pydantic v2
 - uv
@@ -99,8 +109,6 @@ rag-assistant/
 
 ## Prerequisites
 
-Before running the project, ensure you have:
-
 - Python 3.11 or newer
 - uv package manager
 - A Groq API key
@@ -109,16 +117,11 @@ Before running the project, ensure you have:
 
 ## Installation
 
-Clone the repository and install the dependencies.
-
 ```bash
 git clone <repository-url>
 cd rag-assistant
 
-# Create a virtual environment
 uv venv
-
-# Install dependencies
 uv sync
 ```
 
@@ -126,13 +129,11 @@ uv sync
 
 ## Environment Variables
 
-Copy the example environment file.
-
 ```bash
 cp .env.example .env
 ```
 
-Update the `.env` file with your credentials.
+`.env`:
 
 ```env
 GROQ_API_KEY=your-groq-api-key
@@ -140,138 +141,151 @@ MODEL_NAME=llama-3.1-8b-instant
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 ```
 
-> **Note:** Ensure that `app/config.py` uses the same default embedding model (`BAAI/bge-small-en-v1.5`) to remain consistent with this documentation.
+---
+
+## Document Corpus
+
+Three original short documents are included under `data/raw/` so the
+project runs out of the box: `fastapi_basics.md`, `langgraph_basics.md`,
+and `vector_databases_basics.md`. Add your own `.pdf` or `.md` files to
+the same directory to extend the corpus.
 
 ---
 
 ## Ingest Documents
 
-Place your documentation files inside:
-
-```text
-data/raw/
-```
-
-Supported formats:
-
-- `.pdf`
-- `.md`
-
-Run the ingestion pipeline:
+**Option A — standalone script:**
 
 ```bash
 uv run python -m app.ingestion.ingest
 ```
 
-This will:
+**Option B — API endpoint** (also accepts file uploads, saved into
+`data/raw/` before ingesting):
 
-- Load documents
-- Split them into chunks
-- Generate embeddings
-- Store vectors in ChromaDB
+```bash
+curl -X POST http://localhost:8000/api/ingest \
+  -F "files=@my_doc.pdf"
+```
+
+Either path loads documents, splits them into chunks, embeds them, and
+stores the vectors in ChromaDB.
 
 ---
 
 ## Run the API
 
-Start the FastAPI server.
-
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-The application will be available at:
-
-```text
-http://localhost:8000
-```
-
-Interactive API documentation:
-
-```text
-http://localhost:8000/docs
-```
-
-Health check endpoint:
-
-```http
-GET /
-```
-
-Example response:
-
-```json
-{
-  "status": "healthy",
-  "service": "RAG Chatbot API"
-}
-```
+- App: `http://localhost:8000`
+- Interactive docs: `http://localhost:8000/docs`
 
 ---
 
-## Example API Request
+## API Endpoints
 
-### Request
+| Method | Endpoint       | Purpose                                   |
+|--------|----------------|--------------------------------------------|
+| GET    | `/`            | Health check                               |
+| POST   | `/api/query`   | Submit a question, get an answer + sources |
+| POST   | `/api/ingest`  | Ingest documents (optional file uploads)   |
+| GET    | `/api/documents` | List documents currently in the corpus   |
+| POST   | `/api/feedback`  | Submit thumbs up/down + optional comment |
 
-```http
-POST /api/query
-Content-Type: application/json
-```
+### Example: `POST /api/query`
 
-```json
-{
-  "query": "What is LangGraph?"
-}
-```
-
-### Response
+Request:
 
 ```json
 {
-  "query": "What is LangGraph?",
-  "answer": "LangGraph is a library for building stateful, multi-step workflows on top of language models using graph-based execution."
+  "query": "How do conditional edges work in LangGraph?"
 }
 ```
+
+Response:
+
+```json
+{
+  "query": "How do conditional edges work in LangGraph?",
+  "answer": "A conditional edge uses a router function to inspect the current state and decide which node to run next [source: langgraph_basics.md]...",
+  "sources": ["langgraph_basics.md"]
+}
+```
+
+### Example: `POST /api/feedback`
+
+Request:
+
+```json
+{
+  "query": "How do conditional edges work in LangGraph?",
+  "answer": "A conditional edge uses a router function...",
+  "rating": "up",
+  "comment": "Clear and accurate"
+}
+```
+
+Response:
+
+```json
+{
+  "message": "Feedback recorded."
+}
+```
+
+Feedback is appended as JSON lines to `data/feedback.jsonl` (not
+committed to version control).
+
+---
+
+## Design Decisions & Tradeoffs
+
+- **Chunking strategy:** `RecursiveCharacterTextSplitter` with a 1000-character
+  chunk size and 200-character overlap. Recursive splitting tries paragraph and
+  sentence boundaries before falling back to a hard character cut, which keeps
+  most chunks topically coherent; the overlap reduces the chance that a
+  relevant sentence is split across two chunks and missed by either one.
+- **Grading is a per-chunk LLM call**, not a single batched call, favoring
+  simplicity and per-chunk accuracy over latency. With more time this would
+  be batched into one structured-output call to cut latency and cost.
+- **Citations are extracted deterministically** from each relevant document's
+  `source` metadata (not parsed out of the LLM's free-text answer), so the
+  `sources` field in the API response is reliable even if the model's inline
+  citation formatting varies.
+- **Retry limit (`MAX_RETRIES = 2`)** is a fixed constant rather than
+  user-configurable, to keep the assignment's core loop simple and bounded.
+- **Feedback storage** is a local JSON-lines file rather than a database,
+  since the assignment scope doesn't call for persistence infrastructure —
+  swapping in a real datastore is a contained change if needed.
+
+## Assumptions
+
+- A Groq-hosted Llama model is used for all LLM calls (query analysis,
+  grading, rewriting, generation); any other provider could be substituted
+  behind the same `ChatGroq`-shaped call.
+- The corpus is small enough that per-chunk LLM grading is acceptably fast;
+  this would need batching or a lighter-weight grader at larger scale.
+
+## What I'd Improve With More Time
+
+- Hallucination / groundedness check node (Self-RAG style) before returning
+  an answer.
+- Batch document grading into a single structured-output LLM call.
+- Web search fallback when the corpus has no relevant results.
+- Conversation memory for follow-up questions.
+- A minimal Streamlit/Gradio UI.
+- Docker deployment and request-level observability/tracing.
 
 ---
 
 ## Testing
 
-Run the test suite using:
-
 ```bash
 uv run pytest
 ```
 
-The current test suite includes:
-
-- Health endpoint tests
-- API integration tests with mocked graph execution
-
----
-
-## Future Improvements
-
-- Streaming LLM responses
-- Hybrid retrieval (keyword + semantic search)
-- Metadata filtering
-- Source citation support
-- Conversation memory
-- Docker deployment
-- Kubernetes deployment
-- Request tracing and observability
-- Authentication and rate limiting
-
----
-
-## Project Highlights
-
-- Modular architecture with clear separation of concerns
-- Persistent vector storage using ChromaDB
-- LangGraph-based workflow orchestration
-- Retrieval-Augmented Generation (RAG) pipeline
-- LLM-assisted document grading
-- Query rewriting with retry mechanism
-- FastAPI REST interface
-- Automated API testing with Pytest
-- Easy local development using uv
+Covers the health check, `/api/query` (with the graph mocked),
+`/api/documents`, `/api/ingest` (with ingestion mocked), and
+`/api/feedback`.

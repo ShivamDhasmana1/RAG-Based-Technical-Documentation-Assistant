@@ -1,25 +1,15 @@
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-.env
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.DS_Store
-chroma_db/
-data/chroma/
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
 
-# Virtual Environment
+# Virtual environment
 .venv/
 venv/
 
@@ -34,8 +24,12 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Chroma Database
+# Chroma vector database
+chroma_db/
 data/chroma/
+
+# Runtime feedback log
+data/feedback.jsonl
 
 # Logs
 *.log
