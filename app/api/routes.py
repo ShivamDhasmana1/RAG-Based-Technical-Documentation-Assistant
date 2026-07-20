@@ -1,4 +1,5 @@
 import json
+import traceback
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -35,12 +36,16 @@ def query(request: QueryRequest) -> QueryResponse:
         "retry_count": 0,
     }
 
-    result = graph.invoke(initial_state)
+    try:
+        result = graph.invoke(initial_state)
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return QueryResponse(
         query=request.query,
-        answer=result["answer"],
-        sources=result["sources"],
+        answer=result.get("answer", ""),
+        sources=result.get("sources", []),
     )
 
 

@@ -25,3 +25,30 @@ TOP_K_RESULTS = 5
 
 # Workflow constants
 MAX_RETRIES = 2
+
+
+def validate_config() -> None:
+    """Validate required configuration values.
+
+    Raises:
+        RuntimeError: if a required environment variable is missing, so the
+        app fails fast at startup with a clear message instead of crashing
+        deep inside a graph node the first time an LLM call is made (which
+        previously surfaced as an opaque HTTP 500 from POST /api/query).
+    """
+    missing = []
+    if not GROQ_API_KEY:
+        missing.append("GROQ_API_KEY")
+
+    if missing:
+        raise RuntimeError(
+            "Missing required environment variable(s): "
+            f"{', '.join(missing)}. Set them in a .env file "
+            "(see .env.example) before starting the app."
+        )
+
+
+# Validate as soon as config is imported (i.e. before any other module can
+# construct a ChatGroq client with a None api_key). This is the first module
+# imported by every other part of the app (nodes, retriever, ingest, etc.).
+validate_config()

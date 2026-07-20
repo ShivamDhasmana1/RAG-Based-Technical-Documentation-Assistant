@@ -13,9 +13,9 @@ from app.graph.state import GraphState
 
 def route_after_grading(state: GraphState) -> str:
     """Decide the next node after grading: generate, retry, or end."""
-    if len(state["relevant_documents"]) > 0:
+    if len(state.get("relevant_documents") or []) > 0:
         return "generate"
-    if state["retry_count"] < MAX_RETRIES:
+    if state.get("retry_count", 0) < MAX_RETRIES:
         return "rewrite_query"
     return "end"
 
